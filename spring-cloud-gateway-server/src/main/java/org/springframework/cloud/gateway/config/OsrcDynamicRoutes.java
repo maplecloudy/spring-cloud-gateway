@@ -24,13 +24,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.validation.Valid;
-import javax.validation.constraints.NotNull;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.beans.factory.config.YamlMapFactoryBean;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.cloud.gateway.event.PredicateArgsEvent;
 import org.springframework.cloud.gateway.filter.FilterDefinition;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
@@ -41,17 +36,12 @@ import org.springframework.cloud.gateway.handler.predicate.RoutePredicateFactory
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinitionLocator;
-import org.springframework.cloud.gateway.route.RouteDefinitionRouteLocator;
 import org.springframework.cloud.gateway.support.ConfigurationService;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.style.ToStringCreator;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.server.ServerWebExchange;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.maplecloudy.osrt.AbstractProtocolSslContextSpec;
 
 import reactor.core.publisher.Flux;
 
@@ -59,7 +49,6 @@ import reactor.core.publisher.Flux;
 public class OsrcDynamicRoutes {
 
 	private final Log logger = LogFactory.getLog(getClass());
-	AbstractProtocolSslContextSpec
 	/**
 	 * List of filter definitions that are applied to every route.
 	 */
