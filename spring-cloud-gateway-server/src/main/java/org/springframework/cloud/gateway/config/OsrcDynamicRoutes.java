@@ -51,6 +51,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.server.ServerWebExchange;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.maplecloudy.osrt.AbstractProtocolSslContextSpec;
 
 import reactor.core.publisher.Flux;
 
@@ -58,7 +59,7 @@ import reactor.core.publisher.Flux;
 public class OsrcDynamicRoutes {
 
 	private final Log logger = LogFactory.getLog(getClass());
-
+	AbstractProtocolSslContextSpec
 	/**
 	 * List of filter definitions that are applied to every route.
 	 */
