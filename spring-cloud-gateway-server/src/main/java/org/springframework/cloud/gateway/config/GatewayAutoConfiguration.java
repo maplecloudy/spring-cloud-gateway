@@ -196,6 +196,14 @@ public class GatewayAutoConfiguration {
 	}
 
 	@Bean
+	public OsrcDynamicRoutes osrcDynamicRoutes(GatewayProperties properties, List<GatewayFilterFactory> gatewayFilters,
+			List<RoutePredicateFactory> predicates, RouteDefinitionLocator routeDefinitionLocator,
+			ConfigurationService configurationService) {
+		return new OsrcDynamicRoutes(properties, gatewayFilters, predicates, routeDefinitionLocator,
+				configurationService);
+	}
+
+	@Bean
 	public RouteLocatorBuilder routeLocatorBuilder(ConfigurableApplicationContext context) {
 		return new RouteLocatorBuilder(context);
 	}
@@ -259,8 +267,10 @@ public class GatewayAutoConfiguration {
 
 	@Bean
 	public RoutePredicateHandlerMapping routePredicateHandlerMapping(FilteringWebHandler webHandler,
-			RouteLocator routeLocator, GlobalCorsProperties globalCorsProperties, Environment environment) {
-		return new RoutePredicateHandlerMapping(webHandler, routeLocator, globalCorsProperties, environment);
+			RouteLocator routeLocator, GlobalCorsProperties globalCorsProperties, Environment environment,
+			OsrcDynamicRoutes osrcDynamicRoutes) {
+		return new RoutePredicateHandlerMapping(webHandler, routeLocator, globalCorsProperties, environment,
+				osrcDynamicRoutes);
 	}
 
 	@Bean

@@ -18,9 +18,11 @@ package org.springframework.cloud.gateway.handler;
 
 import java.util.function.Function;
 
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import org.springframework.cloud.gateway.config.GlobalCorsProperties;
+import org.springframework.cloud.gateway.config.OsrcDynamicRoutes;
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.core.env.Environment;
@@ -48,6 +50,20 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 
 	private final ManagementPortType managementPortType;
 
+	private OsrcDynamicRoutes osrcDynamicRoutes = null;
+
+	public RoutePredicateHandlerMapping(FilteringWebHandler webHandler, RouteLocator routeLocator,
+			GlobalCorsProperties globalCorsProperties, Environment environment, OsrcDynamicRoutes osrcDynamicRoutes) {
+		this.webHandler = webHandler;
+		this.routeLocator = routeLocator;
+
+		this.managementPort = getPortProperty(environment, "management.server.");
+		this.managementPortType = getManagementPortType(environment);
+		this.osrcDynamicRoutes = osrcDynamicRoutes;
+		setOrder(1);
+		setCorsConfigurations(globalCorsProperties.getCorsConfigurations());
+	}
+
 	public RoutePredicateHandlerMapping(FilteringWebHandler webHandler, RouteLocator routeLocator,
 			GlobalCorsProperties globalCorsProperties, Environment environment) {
 		this.webHandler = webHandler;
@@ -74,7 +90,8 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 
 	@Override
 	protected Mono<?> getHandlerInternal(ServerWebExchange exchange) {
-		// don't handle requests on management port if set and different than server port
+		// don't handle requests on management port if set and different than server
+		// port
 		if (this.managementPortType == DIFFERENT && this.managementPort != null
 				&& exchange.getRequest().getURI().getPort() == this.managementPort) {
 			return Mono.empty();
@@ -119,18 +136,29 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 	}
 
 	protected Mono<Route> lookupRoute(ServerWebExchange exchange) {
-		return this.routeLocator.getRoutes()
-				// individually filter routes so that filterWhen error delaying is not a
-				// problem
-				.concatMap(route -> Mono.just(route).filterWhen(r -> {
-					// add the current route we are testing
-					exchange.getAttributes().put(GATEWAY_PREDICATE_ROUTE_ATTR, r.getId());
-					return r.getPredicate().apply(exchange);
-				})
-						// instead of immediately stopping main flux due to error, log and
-						// swallow it
-						.doOnError(e -> logger.error("Error applying predicate for route: " + route.getId(), e))
-						.onErrorResume(e -> Mono.empty()))
+
+		Mono<Route> routeRt = this.processRoutes(this.routeLocator.getRoutes(), exchange);
+		// individually filter routes so that filterWhen error delaying is not a
+		// problem
+		routeRt = routeRt.switchIfEmpty(this.processRoutes(osrcDynamicRoutes.getRoutes(exchange), exchange));
+		return routeRt;
+
+		/*
+		 * TODO: trace logging if (logger.isTraceEnabled()) {
+		 * logger.trace("RouteDefinition did not match: " + routeDefinition.getId()); }
+		 */
+	}
+
+	private Mono<Route> processRoutes(Flux<Route> routes, ServerWebExchange exchange) {
+		return routes.concatMap(route -> Mono.just(route).filterWhen(r -> {
+			// add the current route we are testing
+			exchange.getAttributes().put(GATEWAY_PREDICATE_ROUTE_ATTR, r.getId());
+			return r.getPredicate().apply(exchange);
+		})
+				// instead of immediately stopping main flux due to error, log and
+				// swallow it
+				.doOnError(e -> logger.error("Error applying predicate for route: " + route.getId(), e))
+				.onErrorResume(e -> Mono.empty()))
 				// .defaultIfEmpty() put a static Route not found
 				// or .switchIfEmpty()
 				// .switchIfEmpty(Mono.<Route>empty().log("noroute"))
@@ -143,11 +171,6 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 					validateRoute(route, exchange);
 					return route;
 				});
-
-		/*
-		 * TODO: trace logging if (logger.isTraceEnabled()) {
-		 * logger.trace("RouteDefinition did not match: " + routeDefinition.getId()); }
-		 */
 	}
 
 	/**
