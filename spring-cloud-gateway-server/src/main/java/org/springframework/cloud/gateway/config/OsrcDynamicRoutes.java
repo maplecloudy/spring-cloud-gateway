@@ -16,14 +16,6 @@
 
 package org.springframework.cloud.gateway.config;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.cloud.gateway.event.PredicateArgsEvent;
@@ -42,27 +34,34 @@ import org.springframework.core.style.ToStringCreator;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.server.ServerWebExchange;
-
 import reactor.core.publisher.Flux;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.*;
 
 @Validated
 public class OsrcDynamicRoutes {
 
 	private final Log logger = LogFactory.getLog(getClass());
+
 	/**
 	 * List of filter definitions that are applied to every route.
 	 */
 	private List<FilterDefinition> defaultFilters = new ArrayList<>();
 
-	private List<MediaType> streamingMediaTypes = Arrays.asList(MediaType.TEXT_EVENT_STREAM,
-			MediaType.APPLICATION_STREAM_JSON, new MediaType("application", "grpc"),
-			new MediaType("application", "grpc+protobuf"), new MediaType("application", "grpc+json"));
+	private List<MediaType> streamingMediaTypes = Arrays
+			.asList(MediaType.TEXT_EVENT_STREAM,
+					MediaType.APPLICATION_STREAM_JSON,
+					new MediaType("application", "grpc"),
+					new MediaType("application", "grpc+protobuf"),
+					new MediaType("application", "grpc+json"));
 
-	private final Map<String, RoutePredicateFactory> predicates = new LinkedHashMap<>();
+	private final Map<String,RoutePredicateFactory> predicates = new LinkedHashMap<>();
 
 	/**
-	 * Option to fail on route definition errors, defaults to true. Otherwise, a warning
-	 * is logged.
+	 * Option to fail on route definition errors, defaults to true. Otherwise, a
+	 * warning is logged.
 	 */
 	private boolean failOnRouteDefinitionError = true;
 
@@ -72,48 +71,84 @@ public class OsrcDynamicRoutes {
 
 	private Object gatewayProperties;
 
-	public OsrcDynamicRoutes(GatewayProperties properties, List<GatewayFilterFactory> gatewayFilters,
-			List<RoutePredicateFactory> predicates, RouteDefinitionLocator routeDefinitionLocator,
+	public OsrcDynamicRoutes(GatewayProperties properties,
+			List<GatewayFilterFactory> gatewayFilters,
+			List<RoutePredicateFactory> predicates,
+			RouteDefinitionLocator routeDefinitionLocator,
 			ConfigurationService configurationService) {
 		this.routeDefinitionLocator = routeDefinitionLocator;
 		this.configurationService = configurationService;
 		this.gatewayProperties = gatewayProperties;
+		initFactories(predicates);
+	}
+
+	private void initFactories(List<RoutePredicateFactory> predicates) {
+		predicates.forEach(factory -> {
+			String key = factory.name();
+			if (this.predicates.containsKey(key)) {
+				this.logger.warn("A RoutePredicateFactory named " + key
+						+ " already exists, class: " + this.predicates.get(key)
+						+ ". It will be overwritten.");
+			}
+			this.predicates.put(key, factory);
+			if (logger.isInfoEnabled()) {
+				logger.info("Loaded RoutePredicateFactory [" + key + "]");
+			}
+		});
 	}
 
 	public List<RouteDefinition> getRds(ServerWebExchange exchange) {
 		List<RouteDefinition> lrs = new ArrayList<RouteDefinition>();
 		String host = exchange.getRequest().getURI().getHost();
+		int port = exchange.getRequest().getURI().getPort();
+		if (port > 0) {
+			host = host + ":" + port;
+		}
 
 		// 根据host获取RouteDefinition
 		RouteDefinition rt = new RouteDefinition();
 
-		String domainRouts = "id: cookie_route\\n\" + \"uri: https://example.org\\n\"\n"
-				+ "      + \"predicates:\\n\" + \"  - Cookie=mycookie,mycookievalue";
+		String domainRouts =
+				"id: cookie_route\\n\" + \"uri: https://example.org\\n\"\n"
+						+ "      + \"predicates:\\n\" + \"  - Cookie=mycookie,mycookievalue";
 
 		try {
-			rt.setUri(new URI("adadsf"));
-		}
-		catch (URISyntaxException e) {
+			rt.setId("fdsefds");
+			rt.setUri(new URI("https://www.baidu.com"));
+			rt.setOrder(0);
+			List<PredicateDefinition> predicates = new ArrayList<>();
+			PredicateDefinition hostDefinition = new PredicateDefinition();
+			hostDefinition.setName("Host");
+			Map<String,String> args = new HashMap();
+			args.put("_genkey_0", host);
+			hostDefinition.setArgs(args);
+			predicates.add(hostDefinition);
+			rt.setPredicates(predicates);
+			lrs.add(rt);
+		} catch (URISyntaxException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		return lrs;
 	}
 
-	String rdYml = "id: cookie_route\n" + "uri: https://example.org\n" + "predicates:\n"
-			+ "  - Cookie=mycookie,mycookievalue";
+	String rdYml = "id: cookie_route\n" + "uri: https://example.org\n"
+			+ "predicates:\n" + "  - Cookie=mycookie,mycookievalue";
 
 	public String getRouteDefinitionFromHost(String host) {
 		return "";
 	}
 
 	public Flux<Route> getRoutes(ServerWebExchange exchange) {
-		Flux<Route> routes = Flux.fromStream(getRds(exchange).stream().map(this::convertToRoute));
+		Flux<Route> routes = Flux.fromStream(
+				getRds(exchange).stream().map(this::convertToRoute));
 		// instead of letting error bubble up, continue
 		routes = routes.onErrorContinue((error, obj) -> {
 			if (logger.isWarnEnabled()) {
-				logger.warn("RouteDefinition id " + ((RouteDefinition) obj).getId()
-						+ " will be ignored. Definition has invalid configs, " + error.getMessage());
+				logger.warn(
+						"RouteDefinition id " + ((RouteDefinition) obj).getId()
+								+ " will be ignored. Definition has invalid configs, "
+								+ error.getMessage());
 			}
 		});
 		return routes.map(route -> {
@@ -125,22 +160,28 @@ public class OsrcDynamicRoutes {
 	}
 
 	private Route convertToRoute(RouteDefinition routeDefinition) {
-		AsyncPredicate<ServerWebExchange> predicate = combinePredicates(routeDefinition);
+		AsyncPredicate<ServerWebExchange> predicate = combinePredicates(
+				routeDefinition);
 		List<GatewayFilter> gatewayFilters = getFilters(routeDefinition);
 
-		return Route.async(routeDefinition).asyncPredicate(predicate).replaceFilters(gatewayFilters).build();
+		return Route.async(routeDefinition).asyncPredicate(predicate)
+				.replaceFilters(gatewayFilters).build();
 	}
 
-	private AsyncPredicate<ServerWebExchange> combinePredicates(RouteDefinition routeDefinition) {
+	private AsyncPredicate<ServerWebExchange> combinePredicates(
+			RouteDefinition routeDefinition) {
 		List<PredicateDefinition> predicates = routeDefinition.getPredicates();
 		if (predicates == null || predicates.isEmpty()) {
 			// this is a very rare case, but possible, just match all
 			return AsyncPredicate.from(exchange -> true);
 		}
-		AsyncPredicate<ServerWebExchange> predicate = lookup(routeDefinition, predicates.get(0));
+		AsyncPredicate<ServerWebExchange> predicate = lookup(routeDefinition,
+				predicates.get(0));
 
-		for (PredicateDefinition andPredicate : predicates.subList(1, predicates.size())) {
-			AsyncPredicate<ServerWebExchange> found = lookup(routeDefinition, andPredicate);
+		for (PredicateDefinition andPredicate : predicates
+				.subList(1, predicates.size())) {
+			AsyncPredicate<ServerWebExchange> found = lookup(routeDefinition,
+					andPredicate);
 			predicate = predicate.and(found);
 		}
 
@@ -185,38 +226,44 @@ public class OsrcDynamicRoutes {
 		return failOnRouteDefinitionError;
 	}
 
-	public void setFailOnRouteDefinitionError(boolean failOnRouteDefinitionError) {
+	public void setFailOnRouteDefinitionError(
+			boolean failOnRouteDefinitionError) {
 		this.failOnRouteDefinitionError = failOnRouteDefinitionError;
 	}
 
 	@SuppressWarnings("unchecked")
-	private AsyncPredicate<ServerWebExchange> lookup(RouteDefinition route, PredicateDefinition predicate) {
-		RoutePredicateFactory<Object> factory = this.predicates.get(predicate.getName());
+	private AsyncPredicate<ServerWebExchange> lookup(RouteDefinition route,
+			PredicateDefinition predicate) {
+		RoutePredicateFactory<Object> factory = this.predicates
+				.get(predicate.getName());
 		if (factory == null) {
-			throw new IllegalArgumentException("Unable to find RoutePredicateFactory with name " + predicate.getName());
+			throw new IllegalArgumentException(
+					"Unable to find RoutePredicateFactory with name "
+							+ predicate.getName());
 		}
 		if (logger.isDebugEnabled()) {
-			logger.debug("RouteDefinition " + route.getId() + " applying " + predicate.getArgs() + " to "
-					+ predicate.getName());
+			logger.debug("RouteDefinition " + route.getId() + " applying "
+					+ predicate.getArgs() + " to " + predicate.getName());
 		}
 
-	// @formatter:off
-    Object config = this.configurationService.with(factory)
-        .name(predicate.getName())
-        .properties(predicate.getArgs())
-        .eventFunction((bound, properties) -> new PredicateArgsEvent(
-            OsrcDynamicRoutes.this, route.getId(), properties))
-        .bind();
-    // @formatter:on
+		// @formatter:off
+		Object config = this.configurationService.with(factory)
+				.name(predicate.getName()).properties(predicate.getArgs())
+				.eventFunction((bound, properties) -> new PredicateArgsEvent(
+						OsrcDynamicRoutes.this, route.getId(), properties))
+				.bind();
+		// @formatter:on
 
 		return factory.applyAsync(config);
 	}
 
 	@Override
 	public String toString() {
-		return new ToStringCreator(this).append("defaultFilters", defaultFilters)
+		return new ToStringCreator(this)
+				.append("defaultFilters", defaultFilters)
 				.append("streamingMediaTypes", streamingMediaTypes)
-				.append("failOnRouteDefinitionError", failOnRouteDefinitionError).toString();
+				.append("failOnRouteDefinitionError",
+						failOnRouteDefinitionError).toString();
 
 	}
 
