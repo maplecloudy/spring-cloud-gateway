@@ -23,7 +23,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.web.server.LocalServerPort;
 import org.springframework.cloud.client.DefaultServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClientsProperties;
-import org.springframework.cloud.gateway.config.OsrcLoadBalancerClientFactory;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.cloud.loadbalancer.annotation.LoadBalancerClient;
@@ -66,19 +65,13 @@ class MyServiceConf {
 	@LocalServerPort
 	private int port = 0;
 
-	//@Bean
+	// @Bean
 	public ServiceInstanceListSupplier staticServiceInstanceListSupplier() {
-		DefaultServiceInstance instance1 = new DefaultServiceInstance(
-				"myservice-1", "myservice", "platform.osrt.com", 18900,
+		DefaultServiceInstance instance1 = new DefaultServiceInstance("myservice-1", "myservice", "platform.osrt.com",
+				18900, false);
+		DefaultServiceInstance instance2 = new DefaultServiceInstance("myservice-2", "myservice", "www.osrc.com", 18900,
 				false);
-		DefaultServiceInstance instance2 = new DefaultServiceInstance(
-				"myservice-2", "myservice", "www.osrc.com", 18900, false);
-		return ServiceInstanceListSuppliers.from("myservice",
-				instance1,instance2);
+		return ServiceInstanceListSuppliers.from("myservice", instance1, instance2);
 	}
 
-	@Bean
-	public LoadBalancerClientFactory aa(LoadBalancerClientsProperties properties){
-		return new OsrcLoadBalancerClientFactory(properties);
-	}
 }
