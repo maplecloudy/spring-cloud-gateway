@@ -18,18 +18,21 @@ package org.springframework.cloud.gateway.config;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cloud.client.DefaultServiceInstance;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClientsProperties;
-import org.springframework.cloud.client.loadbalancer.LoadBalancerProperties;
 import org.springframework.cloud.client.loadbalancer.reactive.ReactiveLoadBalancer;
-import org.springframework.cloud.context.named.NamedContextFactory;
-import org.springframework.cloud.loadbalancer.annotation.LoadBalancerClientConfiguration;
-import org.springframework.cloud.loadbalancer.annotation.LoadBalancerClientSpecification;
 import org.springframework.cloud.loadbalancer.core.ReactorServiceInstanceLoadBalancer;
+import org.springframework.cloud.loadbalancer.core.RoundRobinLoadBalancer;
+import org.springframework.cloud.loadbalancer.core.ServiceInstanceListSupplier;
 import org.springframework.cloud.loadbalancer.support.LoadBalancerClientFactory;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.core.env.Environment;
+import org.springframework.cloud.loadbalancer.support.ServiceInstanceListSuppliers;
+import org.springframework.context.annotation.Bean;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * A factory that creates client, load balancer and client configuration instances. It
@@ -40,23 +43,48 @@ import org.springframework.core.env.Environment;
  * @author Dave Syer
  * @author Olga Maciaszek-Sharma
  */
+//@Component
 public class OsrcLoadBalancerClientFactory extends LoadBalancerClientFactory {
 
-	private static final Log log = LogFactory.getLog(LoadBalancerClientFactory.class);
+	private static final Log log = LogFactory
+			.getLog(LoadBalancerClientFactory.class);
 
-	public OsrcLoadBalancerClientFactory(LoadBalancerClientsProperties properties) {
+	public OsrcLoadBalancerClientFactory(
+			LoadBalancerClientsProperties properties) {
 		super(properties);
 	}
 
 	@Override
 	public ReactiveLoadBalancer<ServiceInstance> getInstance(String serviceId) {
-		ReactorServiceInstanceLoadBalancer instance = getInstance(serviceId, ReactorServiceInstanceLoadBalancer.class);
+		ReactorServiceInstanceLoadBalancer instance = getInstance(serviceId,
+				ReactorServiceInstanceLoadBalancer.class);
 		if (instance == null) {
 			// ID such as :runtime-osrc-a61e221b1adb366265e0a9c0faa08a70,find running
 			// instance domains generate instance
+			DefaultServiceInstance instance1 = new DefaultServiceInstance(
+					"myservice-1", "myservice", "platform.osrt.com", 18900,
+					false);
+			DefaultServiceInstance instance2 = new DefaultServiceInstance(
+					"myservice-2", "myservice", "www.osrc.com", 18900, false);
+			DefaultServiceInstance[] defaultServiceInstances = new DefaultServiceInstance[] {
+					instance1, instance2};
 
+			ObjectProvider<ServiceInstanceListSupplier> serviceInstanceListSuppliers = ServiceInstanceListSuppliers
+					.toProvider("myservice", defaultServiceInstances);
+			instance = new RoundRobinLoadBalancer(serviceInstanceListSuppliers,
+					"myservice");
 		}
 		return instance;
 	}
+
+	//@Bean
+	//public ServiceInstanceListSupplier staticServiceInstanceListSupplier() {
+	//	return ServiceInstanceListSuppliers.from("myservice",
+	//			new DefaultServiceInstance("myservice-1", "myservice",
+	//					"platform.osrt.com", 18900, false),
+	//			new DefaultServiceInstance("myservice-1", "myservice",
+	//					"www.osrc.com", 18900, false));
+	//}
+
 
 }

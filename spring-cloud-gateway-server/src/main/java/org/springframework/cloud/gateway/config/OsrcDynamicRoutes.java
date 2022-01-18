@@ -18,9 +18,11 @@ package org.springframework.cloud.gateway.config;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.cloud.gateway.event.FilterArgsEvent;
 import org.springframework.cloud.gateway.event.PredicateArgsEvent;
 import org.springframework.cloud.gateway.filter.FilterDefinition;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
+import org.springframework.cloud.gateway.filter.OrderedGatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.GatewayFilterFactory;
 import org.springframework.cloud.gateway.handler.AsyncPredicate;
 import org.springframework.cloud.gateway.handler.predicate.PredicateDefinition;
@@ -28,7 +30,10 @@ import org.springframework.cloud.gateway.handler.predicate.RoutePredicateFactory
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinitionLocator;
+import org.springframework.cloud.gateway.route.RouteDefinitionRouteLocator;
 import org.springframework.cloud.gateway.support.ConfigurationService;
+import org.springframework.cloud.gateway.support.HasRouteId;
+import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.style.ToStringCreator;
 import org.springframework.http.MediaType;
@@ -58,7 +63,7 @@ public class OsrcDynamicRoutes {
 					new MediaType("application", "grpc+json"));
 
 	private final Map<String,RoutePredicateFactory> predicates = new LinkedHashMap<>();
-
+	private final Map<String, GatewayFilterFactory> gatewayFilterFactories = new HashMap<>();
 	/**
 	 * Option to fail on route definition errors, defaults to true. Otherwise, a
 	 * warning is logged.
@@ -69,15 +74,16 @@ public class OsrcDynamicRoutes {
 
 	private ConfigurationService configurationService;
 
-	private Object gatewayProperties;
+	private final GatewayProperties gatewayProperties;
 
-	public OsrcDynamicRoutes(GatewayProperties properties,
-			List<GatewayFilterFactory> gatewayFilters,
+	public OsrcDynamicRoutes(GatewayProperties gatewayProperties,
+			List<GatewayFilterFactory> gatewayFilterFactories,
 			List<RoutePredicateFactory> predicates,
 			RouteDefinitionLocator routeDefinitionLocator,
 			ConfigurationService configurationService) {
 		this.routeDefinitionLocator = routeDefinitionLocator;
 		this.configurationService = configurationService;
+		gatewayFilterFactories.forEach(factory -> this.gatewayFilterFactories.put(factory.name(), factory));
 		this.gatewayProperties = gatewayProperties;
 		initFactories(predicates);
 	}
@@ -114,7 +120,8 @@ public class OsrcDynamicRoutes {
 
 		try {
 			rt.setId("fdsefds");
-			rt.setUri(new URI("https://www.baidu.com"));
+			//rt.setUri(new URI("https://www.baidu.com"));
+			rt.setUri(new URI("lb://myservice"));
 			rt.setOrder(0);
 			List<PredicateDefinition> predicates = new ArrayList<>();
 			PredicateDefinition hostDefinition = new PredicateDefinition();
@@ -192,15 +199,14 @@ public class OsrcDynamicRoutes {
 		List<GatewayFilter> filters = new ArrayList<>();
 
 		// TODO: support option to apply defaults after route specific filters?
-		// if (!this.gatewayProperties.getDefaultFilters().isEmpty()) {
-		// filters.addAll(loadGatewayFilters(routeDefinition.getId(),
-		// new ArrayList<>(this.gatewayProperties.getDefaultFilters())));
-		// }
-		//
-		// if (!routeDefinition.getFilters().isEmpty()) {
-		// filters.addAll(loadGatewayFilters(routeDefinition.getId(), new
-		// ArrayList<>(routeDefinition.getFilters())));
-		// }
+		//if (!this.gatewayProperties.getDefaultFilters().isEmpty()) {
+		//	filters.addAll(loadGatewayFilters(routeDefinition.getId(),
+		//			new ArrayList<>(this.gatewayProperties.getDefaultFilters())));
+		//}
+    //
+		//if (!routeDefinition.getFilters().isEmpty()) {
+		//	filters.addAll(loadGatewayFilters(routeDefinition.getId(), new ArrayList<>(routeDefinition.getFilters())));
+		//}
 
 		AnnotationAwareOrderComparator.sort(filters);
 		return filters;
